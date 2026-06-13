@@ -1,0 +1,10 @@
+[Unit]
+Description=Game Over Man sports score notifier -- run every 10 minutes
+Documentation=https://github.com/rorpage/game-over-man
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+
+[Install]
+WantedBy=timers.target

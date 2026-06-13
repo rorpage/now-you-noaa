@@ -1,0 +1,6 @@
+game-over-man
+dist/
+config.json
+state.json
+.env
+*.local.json

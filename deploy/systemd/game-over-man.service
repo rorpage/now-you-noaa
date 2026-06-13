@@ -1,0 +1,13 @@
+[Unit]
+Description=Game Over Man sports score notifier
+Documentation=https://github.com/rorpage/game-over-man
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=game-over-man
+EnvironmentFile=/etc/game-over-man/env
+ExecStart=/usr/local/bin/game-over-man
+StandardOutput=journal
+StandardError=journal
