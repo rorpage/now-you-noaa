@@ -100,7 +100,9 @@ Use a Discord webhook URL as `notificationUrl` and add a `notificationHeaders` e
 
 ## Running with Docker
 
-### One-shot (recommended with cron or a k8s CronJob)
+The container is a one-shot job: it runs, checks scores, and exits. You schedule it with whatever tool fits your setup. Three options are covered below, from simplest to most fully-featured.
+
+### One-shot (manual / testing)
 
 ```bash
 docker run --rm \
@@ -110,30 +112,138 @@ docker run --rm \
   ghcr.io/rorpage/game-over-man:latest
 ```
 
-### cron example (every 10 minutes)
+---
+
+### Option 1: cron
+
+The quickest setup. Add a line to your crontab with `crontab -e`:
 
 ```cron
-*/10 * * * * docker run --rm -v /opt/gom/config.json:/config/config.json:ro -v /opt/gom/data:/data -e NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts ghcr.io/rorpage/game-over-man:latest
+*/10 * * * * docker run --rm -v /etc/game-over-man/config.json:/config/config.json:ro -v /var/lib/game-over-man:/data -e NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts ghcr.io/rorpage/game-over-man:latest
 ```
 
-### Docker Compose
+Logs go to syslog (`/var/log/syslog` or `journalctl -t CRON`). Simple, but harder to debug than the systemd option.
+
+---
+
+### Option 2: systemd timer (recommended for Linux servers)
+
+systemd timers have proper log capture via `journalctl`, survive reboots cleanly with `Persistent=true`, and are standard on any modern Linux distro. Ready-to-use unit files are in `deploy/systemd/`.
+
+**Quick install:**
+
+```bash
+sudo cp deploy/systemd/game-over-man.service deploy/systemd/game-over-man.timer /etc/systemd/system/
+sudo mkdir -p /etc/game-over-man /var/lib/game-over-man
+sudo cp deploy/systemd/env.example /etc/game-over-man/env
+sudo cp config.json /etc/game-over-man/config.json
+```
+
+Edit `/etc/game-over-man/env` with your `NOTIFICATION_URL`, then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now game-over-man.timer
+```
+
+Or use the included install script, which does all of the above:
+
+```bash
+sudo bash deploy/systemd/install.sh
+```
+
+**Useful commands:**
+
+```bash
+systemctl status game-over-man.timer      # next scheduled run
+systemctl start game-over-man.service     # run immediately
+journalctl -u game-over-man -f            # follow logs
+```
+
+**Changing the schedule:**
+
+Edit `/etc/systemd/system/game-over-man.timer` and update `OnCalendar`. Examples:
+
+```ini
+OnCalendar=*:0/10        # every 10 minutes (default)
+OnCalendar=*:0/5         # every 5 minutes
+OnCalendar=hourly        # once per hour
+```
+
+Then `sudo systemctl daemon-reload && sudo systemctl restart game-over-man.timer`.
+
+---
+
+### Option 3: Docker Compose + ofelia
+
+[ofelia](https://github.com/mcuadros/ofelia) is a lightweight job scheduler for Docker that runs containers on a cron-style schedule. Use this if you prefer managing everything through Compose.
+
+Copy the files from `deploy/compose/` and edit `ofelia.ini` with your paths and notification URL:
+
+```bash
+cp deploy/compose/docker-compose.yml deploy/compose/ofelia.ini ./
+```
+
+**ofelia.ini** (edit before running):
+
+```ini
+[job-run "game-over-man"]
+schedule    = @every 10m
+image       = ghcr.io/rorpage/game-over-man:latest
+volume      = /etc/game-over-man/config.json:/config/config.json:ro
+volume      = /var/lib/game-over-man:/data
+environment = NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts
+delete      = true
+network     = none
+```
+
+Start ofelia:
+
+```bash
+docker compose up -d
+```
+
+Logs: `docker compose logs -f ofelia`
+
+---
+
+### Kubernetes CronJob
 
 ```yaml
-services:
-  game-over-man:
-    image: ghcr.io/rorpage/game-over-man:latest
-    volumes:
-      - ./config.json:/config/config.json:ro
-      - gom-data:/data
-    environment:
-      - NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts
-    restart: "no"
-
-volumes:
-  gom-data:
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: game-over-man
+spec:
+  schedule: "*/10 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: game-over-man
+              image: ghcr.io/rorpage/game-over-man:latest
+              env:
+                - name: NOTIFICATION_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: game-over-man
+                      key: notificationUrl
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: state
+                  mountPath: /data
+          volumes:
+            - name: config
+              configMap:
+                name: game-over-man-config
+            - name: state
+              persistentVolumeClaim:
+                claimName: game-over-man-state
 ```
-
-Pair it with a cron-based restart or use a tool like [ofelia](https://github.com/mcuadros/ofelia) to schedule it.
 
 ## Environment Variables
 

@@ -21,6 +21,15 @@ config.example.json   -- copy to config.json (gitignored) to run locally
 Dockerfile            -- multi-stage Alpine build; no runtime npm deps
 .github/workflows/
   publish.yml         -- builds and pushes to ghcr.io/rorpage/game-over-man on push to main or tag
+deploy/
+  systemd/
+    game-over-man.service  -- systemd unit; runs docker container as oneshot
+    game-over-man.timer    -- systemd timer; fires every 10 minutes, Persistent=true
+    env.example            -- template for /etc/game-over-man/env (holds NOTIFICATION_URL)
+    install.sh             -- copies unit files, creates dirs, enables timer
+  compose/
+    docker-compose.yml     -- runs ofelia scheduler
+    ofelia.ini             -- job-run config; edit paths and NOTIFICATION_URL before use
 ```
 
 ## Key design decisions
@@ -101,6 +110,16 @@ To make the published image publicly pullable, go to the package settings on Git
 - Do not write comments that explain what the code does -- only write them when the WHY is non-obvious
 - No em dashes anywhere in code or documentation
 
+## Scheduling
+
+The container is one-shot by design. Four scheduling options are documented in README.md:
+- **cron** -- simplest; one crontab line; logs go to syslog
+- **systemd timer** -- recommended for Linux servers; `Persistent=true` catches missed runs; logs via `journalctl`; deploy files in `deploy/systemd/`
+- **ofelia** -- Docker-native scheduler; good for Compose setups; deploy files in `deploy/compose/`
+- **Kubernetes CronJob** -- documented in README, no deploy files needed
+
+When modifying `OnCalendar` in the timer or `schedule` in ofelia.ini, use the same value in both files and update the README examples. The default is every 10 minutes.
+
 ## Files to keep updated
 
 When making changes, keep README.md and AGENTS.md in sync:
@@ -108,3 +127,4 @@ When making changes, keep README.md and AGENTS.md in sync:
 - New config fields -> update Config fields table in README.md and this file
 - New env vars -> update Environment Variables table in README.md and this file
 - Architectural changes -> update the Key design decisions section in this file
+- New deploy options -> add to the Scheduling section above and the Running with Docker section in README.md
