@@ -4,7 +4,7 @@ Context for AI agents (Claude Code, Copilot, etc.) working in this repository.
 
 ## What this project does
 
-Game Over Man is a one-shot Go binary that queries the ESPN public scoreboard API for any sport/league you configure, finds completed games involving tracked teams, and sends a single webhook notification per game. Idempotency is maintained via a JSON state file. It runs directly on Linux/macOS or in Docker; no runtime dependencies beyond the binary itself.
+Game Over Man is a one-shot Go binary for home servers. It queries the ESPN public scoreboard API for any sport/league you configure, finds completed games involving tracked teams, and sends a single webhook notification per game. Idempotency is maintained via a JSON state file. It runs directly on Linux or macOS -- no Docker, no runtime dependencies.
 
 ## Repository layout
 
@@ -17,38 +17,33 @@ state.go      -- reads/writes/prunes the state file
 
 go.mod                -- module definition; no external dependencies
 config.example.json   -- copy to config.json (gitignored) to run locally
-Dockerfile            -- multi-stage Go build; final image is alpine:3.19 (~12MB)
 
 .github/workflows/
-  publish.yml   -- on tag: builds binaries for 5 platforms + creates GitHub Release
-                -- on main/tag: builds and pushes Docker image to ghcr.io
+  publish.yml   -- on v* tag: cross-compiles binaries for 5 platforms, creates GitHub Release
 
 deploy/
   systemd/
     game-over-man.service  -- oneshot unit; runs binary as game-over-man user
     game-over-man.timer    -- fires every 10 minutes, Persistent=true
-    env.example            -- template for /etc/game-over-man/env
+    env.example            -- template for /etc/game-over-man/env (holds NOTIFICATION_URL)
     install.sh             -- downloads binary (or builds from source), creates user/dirs, enables timer
-  compose/
-    docker-compose.yml     -- runs ofelia scheduler
-    ofelia.ini             -- job-run config; edit paths and NOTIFICATION_URL before use
 ```
 
 ## Key design decisions
 
 - **Single static binary, no runtime dependencies.** Go's standard library handles HTTP and JSON. CGO is disabled so the binary runs on any Linux/macOS without glibc or other shared libraries.
-- **One-shot execution.** The binary runs, checks scores, and exits. Scheduling is the caller's responsibility (cron, systemd timer, k8s CronJob, etc.).
+- **No Docker.** This project targets home server use. Docker adds path, permission, and user complexity that the Go binary approach eliminates entirely.
+- **One-shot execution.** The binary runs, checks scores, and exits. Scheduling is the caller's responsibility (cron or systemd timer).
 - **State file for idempotency.** `state.json` records notified game IDs with timestamps. Entries older than `pruneAfterDays` (default 30) are pruned on each run. If a notification POST fails, the game ID is not recorded, so it will be retried on the next run.
 - **Config-file-first, env-var override.** `NOTIFICATION_URL`, `CONFIG_FILE`, and `STATE_FILE` env vars override their config file equivalents. Keep the notification URL in an env var to avoid committing secrets.
 - **Case-normalized inputs.** Sport and league values are lowercased; abbreviations are uppercased on config load so comparisons are always case-insensitive.
-- **No Docker required.** Docker is provided as an option for users who prefer it, but the primary deployment model is the binary running directly under systemd.
 
 ## Default file paths
 
-| Purpose | Native binary default | Docker default (set via ENV in Dockerfile) |
-|---|---|---|
-| Config | `/etc/game-over-man/config.json` | `/config/config.json` |
-| State | `/var/lib/game-over-man/state.json` | `/data/state.json` |
+| Purpose | Default |
+|---|---|
+| Config | `/etc/game-over-man/config.json` |
+| State | `/var/lib/game-over-man/state.json` |
 
 ## ESPN API
 
@@ -79,54 +74,34 @@ type notificationPayload struct {
 ## Development workflow
 
 ```bash
-go build ./...            # compile
-go vet ./...              # static analysis
-go build -o game-over-man . && ./game-over-man  # run (needs CONFIG_FILE and NOTIFICATION_URL)
+go build ./...              # compile
+go vet ./...                # static analysis
+go build -o game-over-man . && CONFIG_FILE=config.json NOTIFICATION_URL=http://localhost:3001 ./game-over-man
 ```
 
 To test locally without a real webhook, run a listener in another terminal:
-```bash
-# needs python3
-python3 -m http.server 3001 &
-CONFIG_FILE=config.json NOTIFICATION_URL=http://localhost:3001 ./game-over-man
-```
-
-## Docker
 
 ```bash
-docker build -t game-over-man .
-docker run --rm \
-  -v $(pwd)/config.json:/config/config.json:ro \
-  -v $(pwd)/data:/data \
-  -e NOTIFICATION_URL=https://ntfy.sh/my-topic \
-  game-over-man
+python3 -m http.server 3001
 ```
-
-The `/data` volume must persist across runs for idempotency to work.
 
 ## GitHub Actions
 
-`.github/workflows/publish.yml` has two jobs:
-
-- **build-binaries**: triggers on `v*` tags only. Uses `actions/setup-go`, cross-compiles for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, and windows/amd64, then uploads all binaries to the GitHub Release using `softprops/action-gh-release`.
-- **build-docker**: triggers on push to `main` and all tags. Logs into `ghcr.io` using `GITHUB_TOKEN`, builds with Buildx, and pushes with tags: `latest` (main only), branch name, version tag, and `sha-<shortsha>`.
+`.github/workflows/publish.yml` triggers on `v*` tags. It cross-compiles for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, and windows/amd64, then uploads all binaries to the GitHub Release using `softprops/action-gh-release`. No Docker image is built or published.
 
 ## Scheduling
 
-The binary is one-shot by design. Four scheduling options are documented in README.md:
-- **cron** -- simplest; one crontab line; logs go to syslog
-- **systemd timer** -- recommended for Linux servers; dedicated user; logs via `journalctl`; deploy files in `deploy/systemd/`
-- **ofelia** -- Docker-native scheduler; good for Compose setups; deploy files in `deploy/compose/`
-- **Kubernetes CronJob** -- documented in README, no deploy files needed
+Two scheduling options are documented in README.md:
+- **systemd timer** -- recommended; dedicated user; logs via `journalctl`; deploy files in `deploy/systemd/`
+- **cron** -- simpler; one crontab line; logs go to syslog
 
-When changing the default schedule, update both `deploy/systemd/game-over-man.timer` (OnCalendar) and `deploy/compose/ofelia.ini` (schedule), and update the examples in README.md.
+When changing the default schedule (currently every 10 minutes), update `OnCalendar` in `deploy/systemd/game-over-man.timer` and the examples in README.md.
 
 ## Style conventions
 
 - Standard Go idioms; run `go vet` before committing
 - No external dependencies -- standard library only
 - Log lines are prefixed with `[module]` (e.g. `[espn]`, `[notify]`, `[state]`, `[config]`)
-- Unexported types are fine for internal structs; export only what crosses package boundaries (nothing does here -- it's all `package main`)
 - Do not write comments that explain what the code does -- only add one when the WHY is non-obvious
 - No em dashes anywhere in code or documentation
 
@@ -137,4 +112,3 @@ When making changes, keep README.md and AGENTS.md in sync:
 - New config fields -> Config fields table in README.md and this file
 - New env vars -> Environment Variables table in README.md and this file
 - Architectural changes -> Key design decisions section in this file
-- New deploy options -> Scheduling section in both files and Running with Docker section in README.md

@@ -1,8 +1,8 @@
 # Game Over Man
 
-A sports score notifier. It polls the ESPN API for final scores across multiple sports and leagues, then fires a single webhook notification per game for each team you care about. No score goes unnoticed; no notification repeats.
+A sports score notifier for home servers. It polls the ESPN API for final scores across multiple sports and leagues, then fires a single webhook notification per game for each team you care about. No score goes unnoticed; no notification repeats.
 
-It is a single Go binary with no runtime dependencies. You can run it directly on any Linux or macOS machine, schedule it with cron or systemd, or run it in Docker if you prefer.
+It is a single Go binary with no runtime dependencies. Drop it on any Linux or macOS machine, point it at a config file, and schedule it with cron or systemd.
 
 ## Features
 
@@ -11,7 +11,7 @@ It is a single Go binary with no runtime dependencies. You can run it directly o
 - Webhook URL configurable via environment variable or config file
 - Custom HTTP headers supported (for auth tokens, Slack/Discord format requirements, etc.)
 - Persistent state in a plain JSON file; old entries are pruned automatically
-- Single static binary, no runtime dependencies
+- Single static binary, no runtime dependencies, no Docker required
 
 ## Installation
 
@@ -42,11 +42,17 @@ Requires Go 1.22+.
 git clone https://github.com/rorpage/game-over-man.git
 cd game-over-man
 CGO_ENABLED=0 go build -ldflags="-s -w" -o game-over-man .
+sudo mv game-over-man /usr/local/bin/
 ```
 
 ## Configuration
 
-Create a config file (default location: `/etc/game-over-man/config.json`):
+Create a config file at `/etc/game-over-man/config.json`:
+
+```bash
+sudo mkdir -p /etc/game-over-man
+sudo nano /etc/game-over-man/config.json
+```
 
 ```json
 {
@@ -74,7 +80,7 @@ See `config.example.json` for a more complete example with all supported fields.
 | `stateFilePath` | No | `/var/lib/game-over-man/state.json` | Where to persist notification state |
 | `pruneAfterDays` | No | `30` | How many days to keep state entries before pruning |
 
-**Notification URL:** Set via the `NOTIFICATION_URL` environment variable (preferred, keeps it out of the config file) or directly in the config as `notificationUrl`. The env var takes precedence.
+**Notification URL:** Set via the `NOTIFICATION_URL` environment variable (preferred, keeps it out of the config file) or as `notificationUrl` in the config. The env var takes precedence.
 
 ## Environment Variables
 
@@ -107,6 +113,7 @@ See `config.example.json` for a more complete example with all supported fields.
 | Soccer | Champions League | `soccer` | `uefa.champions` |
 
 The ESPN API may support additional leagues. Test any `sport`/`league` pair with:
+
 ```bash
 curl "http://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard"
 ```
@@ -137,33 +144,19 @@ Each alert is an HTTP POST with `Content-Type: application/json`:
 
 ### ntfy.sh
 
-Point `notificationUrl` at your topic URL (e.g. `https://ntfy.sh/my-sports-alerts`). The full JSON payload will be the body. To show just the `summary` as a plain-text notification, you can run a small proxy or use ntfy's [message templating](https://docs.ntfy.sh).
+Point `notificationUrl` at your topic URL (e.g. `https://ntfy.sh/my-sports-alerts`). The full JSON payload will be the body. To show just the `summary` as a plain-text push notification, use ntfy's [message templating](https://docs.ntfy.sh) or run a small proxy.
 
 ### Discord / Slack
 
-Use the webhook URL as `notificationUrl`. Discord expects a `content` field and Slack expects `text`; a small proxy or [n8n](https://n8n.io/) works well for reshaping the payload.
+Use the webhook URL as `notificationUrl`. Discord expects a `content` field and Slack expects `text`; a tool like [n8n](https://n8n.io/) works well for reshaping the payload.
 
 ## Scheduling
 
-The binary is a one-shot job: it runs, checks scores, and exits. You schedule it with whatever fits your setup.
+The binary is a one-shot job: it runs, checks scores, and exits.
 
-### cron
+### systemd timer (recommended)
 
-The quickest option. Add a line to your crontab (`crontab -e`):
-
-```cron
-*/10 * * * * NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts /usr/local/bin/game-over-man
-```
-
-Or if you prefer an env file:
-
-```cron
-*/10 * * * * env $(cat /etc/game-over-man/env | xargs) /usr/local/bin/game-over-man
-```
-
-### systemd timer (recommended for Linux servers)
-
-systemd timers have proper log capture via `journalctl`, survive reboots cleanly with `Persistent=true`, and run as a dedicated non-root user. Ready-to-use files are in `deploy/systemd/`.
+systemd timers have proper log capture via `journalctl`, survive reboots cleanly with `Persistent=true`, run as a dedicated non-root user, and are standard on any modern Linux distro. Ready-to-use files are in `deploy/systemd/`.
 
 **Quick install:**
 
@@ -171,10 +164,10 @@ systemd timers have proper log capture via `journalctl`, survive reboots cleanly
 sudo bash deploy/systemd/install.sh
 ```
 
-The script downloads the latest binary, creates a `game-over-man` system user, sets up `/etc/game-over-man/` and `/var/lib/game-over-man/`, and enables the timer. Then:
+The script downloads the latest binary from GitHub Releases (or builds from source if Go is available), creates a `game-over-man` system user, sets up `/etc/game-over-man/` and `/var/lib/game-over-man/`, and enables the timer. Then:
 
 ```bash
-# Edit the notification URL
+# Set your notification URL
 sudo nano /etc/game-over-man/env
 
 # Copy your config
@@ -194,80 +187,34 @@ journalctl -u game-over-man -f           # follow logs
 ```
 
 **Changing the schedule:** Edit `/etc/systemd/system/game-over-man.timer`, update `OnCalendar`, then:
+
 ```bash
 sudo systemctl daemon-reload && sudo systemctl restart game-over-man.timer
 ```
 
 Common values:
+
 ```ini
 OnCalendar=*:0/10    # every 10 minutes (default)
 OnCalendar=*:0/5     # every 5 minutes
 OnCalendar=hourly    # once per hour
 ```
 
-### Docker Compose + ofelia
+### cron
 
-[ofelia](https://github.com/mcuadros/ofelia) is a lightweight job scheduler for Docker. Use this if you're already running Docker Compose.
+Add a line to your crontab with `crontab -e`:
 
-Copy the files from `deploy/compose/` and edit `ofelia.ini` with your paths and notification URL:
-
-```bash
-cp deploy/compose/docker-compose.yml deploy/compose/ofelia.ini ./
-# Edit ofelia.ini, then:
-docker compose up -d
+```cron
+*/10 * * * * NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts /usr/local/bin/game-over-man
 ```
 
-Logs: `docker compose logs -f ofelia`
+Or if you prefer an env file:
 
-### Docker (one-shot)
-
-```bash
-docker run --rm \
-  -v /path/to/config.json:/config/config.json:ro \
-  -v /path/to/data:/data \
-  -e NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts \
-  ghcr.io/rorpage/game-over-man:latest
+```cron
+*/10 * * * * env $(cat /etc/game-over-man/env | xargs) /usr/local/bin/game-over-man
 ```
 
-The Docker image sets `CONFIG_FILE=/config/config.json` and `STATE_FILE=/data/state.json` as defaults so the mount points are predictable.
-
-### Kubernetes CronJob
-
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: game-over-man
-spec:
-  schedule: "*/10 * * * *"
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          restartPolicy: OnFailure
-          containers:
-            - name: game-over-man
-              image: ghcr.io/rorpage/game-over-man:latest
-              env:
-                - name: NOTIFICATION_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: game-over-man
-                      key: notificationUrl
-              volumeMounts:
-                - name: config
-                  mountPath: /config
-                  readOnly: true
-                - name: state
-                  mountPath: /data
-          volumes:
-            - name: config
-              configMap:
-                name: game-over-man-config
-            - name: state
-              persistentVolumeClaim:
-                claimName: game-over-man-state
-```
+Logs go to syslog (`journalctl -t game-over-man` or `/var/log/syslog`).
 
 ## How It Works
 
@@ -278,18 +225,15 @@ spec:
 5. If not, POST the notification payload to the configured URL and record the game ID in state
 6. Save state to disk
 
-The state file is the single source of truth for idempotency. As long as it persists across runs, no game will trigger more than one notification.
+The state file is the single source of truth for idempotency. As long as it persists across runs, no game will ever trigger more than one notification.
 
-## Publishing a New Version
+## Releasing a New Version
 
-Create a tag to trigger the GitHub Actions workflow, which builds binaries for all platforms and attaches them to a GitHub Release, and also builds and pushes a Docker image:
+Create a version tag to trigger the GitHub Actions workflow, which cross-compiles binaries for all platforms and attaches them to a GitHub Release:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Binaries will be attached to the release at `https://github.com/rorpage/game-over-man/releases`.
-The Docker image will be published to `ghcr.io/rorpage/game-over-man`.
-
-To make the published Docker image publicly pullable, go to the package settings on GitHub and set visibility to Public.
+Binaries will be available at `https://github.com/rorpage/game-over-man/releases`.
