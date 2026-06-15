@@ -8,8 +8,9 @@ It is a single Go binary with no runtime dependencies. Drop it on any Linux or m
 
 - Tracks teams across NFL, NHL, NBA, MLB, AHL, MLS, college football, college basketball, and more
 - One notification per completed game -- no duplicates, even across restarts
+- Built-in Slack and Discord payload presets; custom Go template support for any other platform
 - Webhook URL configurable via environment variable or config file
-- Custom HTTP headers supported (for auth tokens, Slack/Discord format requirements, etc.)
+- Custom HTTP headers supported (for auth tokens and other per-platform requirements)
 - Persistent state in a plain JSON file; old entries are pruned automatically
 - Single static binary, no runtime dependencies, no Docker required
 
