@@ -12,6 +12,8 @@
 
   "notificationUrl": "https://ntfy.sh/my-sports-alerts",
 
+  "notificationType": "webhook",
+
   "stateFilePath": "/data/state.json",
 
   "pruneAfterDays": 30

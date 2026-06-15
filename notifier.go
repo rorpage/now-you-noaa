@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 )
 
 type notificationPayload struct {
@@ -40,12 +41,33 @@ func buildPayload(game gameResult) notificationPayload {
 	return notificationPayload{Game: game, Summary: summary, Winner: winner, Loser: loser, IsDraw: isDraw}
 }
 
+func buildBody(cfg *appConfig, payload notificationPayload) ([]byte, error) {
+	switch cfg.NotificationType {
+	case "slack":
+		return json.Marshal(map[string]string{"text": payload.Summary})
+	case "discord":
+		return json.Marshal(map[string]string{"content": payload.Summary})
+	case "template":
+		tmpl, err := template.New("notification").Parse(cfg.NotificationTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("parsing notification template: %w", err)
+		}
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, payload); err != nil {
+			return nil, fmt.Errorf("executing notification template: %w", err)
+		}
+		return buf.Bytes(), nil
+	default: // "webhook"
+		return json.Marshal(payload)
+	}
+}
+
 func sendNotification(cfg *appConfig, game gameResult) error {
 	payload := buildPayload(game)
 
-	body, err := json.Marshal(payload)
+	body, err := buildBody(cfg, payload)
 	if err != nil {
-		return fmt.Errorf("marshaling payload: %w", err)
+		return fmt.Errorf("building notification body: %w", err)
 	}
 
 	req, err := http.NewRequest(cfg.NotificationMethod, cfg.NotificationURL, bytes.NewReader(body))

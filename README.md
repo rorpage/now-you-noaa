@@ -8,8 +8,9 @@ It is a single Go binary with no runtime dependencies. Drop it on any Linux or m
 
 - Tracks teams across NFL, NHL, NBA, MLB, AHL, MLS, college football, college basketball, and more
 - One notification per completed game -- no duplicates, even across restarts
+- Built-in Slack and Discord payload presets; custom Go template support for any other platform
 - Webhook URL configurable via environment variable or config file
-- Custom HTTP headers supported (for auth tokens, Slack/Discord format requirements, etc.)
+- Custom HTTP headers supported (for auth tokens and other per-platform requirements)
 - Persistent state in a plain JSON file; old entries are pruned automatically
 - Single static binary, no runtime dependencies, no Docker required
 
@@ -77,6 +78,8 @@ See `config.example.json` for a more complete example with all supported fields.
 | `notificationUrl` | See note | -- | Webhook URL to POST alerts to |
 | `notificationMethod` | No | `POST` | HTTP method for notifications |
 | `notificationHeaders` | No | -- | Extra headers (e.g. `{"Authorization": "Bearer ..."}`) |
+| `notificationType` | No | `webhook` | Payload format: `webhook`, `slack`, `discord`, or `template` |
+| `notificationTemplate` | If `template` | -- | Go template string used when `notificationType` is `template` |
 | `stateFilePath` | No | `/var/lib/game-over-man/state.json` | Where to persist notification state |
 | `pruneAfterDays` | No | `30` | How many days to keep state entries before pruning |
 
@@ -146,9 +149,60 @@ Each alert is an HTTP POST with `Content-Type: application/json`:
 
 Point `notificationUrl` at your topic URL (e.g. `https://ntfy.sh/my-sports-alerts`). The full JSON payload will be the body. To show just the `summary` as a plain-text push notification, use ntfy's [message templating](https://docs.ntfy.sh) or run a small proxy.
 
-### Discord / Slack
+### Notification types
 
-Use the webhook URL as `notificationUrl`. Discord expects a `content` field and Slack expects `text`; a tool like [n8n](https://n8n.io/) works well for reshaping the payload.
+The `notificationType` field controls the outgoing payload shape:
+
+| Type | Payload sent |
+|---|---|
+| `webhook` (default) | Full JSON object (see [Notification Payload](#notification-payload)) |
+| `slack` | `{"text": "<summary>"}` — ready for a Slack incoming webhook URL |
+| `discord` | `{"content": "<summary>"}` — ready for a Discord webhook URL |
+| `template` | Output of your Go template, rendered against the payload data |
+
+**Slack:**
+
+```json
+{
+  "notificationUrl": "https://hooks.slack.com/services/...",
+  "notificationType": "slack"
+}
+```
+
+**Discord:**
+
+```json
+{
+  "notificationUrl": "https://discord.com/api/webhooks/...",
+  "notificationType": "discord"
+}
+```
+
+**Custom template:**
+
+Set `notificationType` to `"template"` and provide a `notificationTemplate` string. The template is rendered with Go's [`text/template`](https://pkg.go.dev/text/template) and has access to all payload fields:
+
+| Variable | Description |
+|---|---|
+| `{{.Summary}}` | Pre-built summary string (e.g. `Final: Utah HC 4, Colorado 3 (OT)`) |
+| `{{.Winner}}` | Winner's name, or empty if a draw |
+| `{{.Loser}}` | Loser's name, or empty if a draw |
+| `{{.IsDraw}}` | `true` if the game ended in a draw |
+| `{{.Game.HomeTeam.Name}}` / `{{.Game.AwayTeam.Name}}` | Team names |
+| `{{.Game.HomeTeam.Score}}` / `{{.Game.AwayTeam.Score}}` | Final scores |
+| `{{.Game.HomeTeam.Abbreviation}}` | Team abbreviation |
+| `{{.Game.Sport}}` / `{{.Game.League}}` | Sport and league |
+| `{{.Game.StatusDescription}}` | Status string (e.g. `Final`, `Final/OT`) |
+
+Example — ntfy.sh with a plain-text title:
+
+```json
+{
+  "notificationUrl": "https://ntfy.sh/my-sports-alerts",
+  "notificationType": "template",
+  "notificationTemplate": "{\"topic\": \"my-sports-alerts\", \"message\": \"{{.Summary}}\"}"
+}
+```
 
 ## Scheduling
 

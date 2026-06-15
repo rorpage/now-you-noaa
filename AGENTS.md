@@ -12,7 +12,7 @@ Game Over Man is a one-shot Go binary for home servers. It queries the ESPN publ
 main.go       -- entry point; orchestrates config, ESPN fetch, notify, state
 config.go     -- config types, loading from JSON + env var overrides
 espn.go       -- ESPN API fetch, response parsing, team matching
-notifier.go   -- builds notification payload, POSTs to webhook URL
+notifier.go   -- builds notification payload (webhook/slack/discord/template), POSTs to webhook URL
 state.go      -- reads/writes/prunes the state file
 
 go.mod                -- module definition; no external dependencies
@@ -37,6 +37,23 @@ deploy/
 - **State file for idempotency.** `state.json` records notified game IDs with timestamps. Entries older than `pruneAfterDays` (default 30) are pruned on each run. If a notification POST fails, the game ID is not recorded, so it will be retried on the next run.
 - **Config-file-first, env-var override.** `NOTIFICATION_URL`, `CONFIG_FILE`, and `STATE_FILE` env vars override their config file equivalents. Keep the notification URL in an env var to avoid committing secrets.
 - **Case-normalized inputs.** Sport and league values are lowercased; abbreviations are uppercased on config load so comparisons are always case-insensitive.
+- **Notification type presets.** `notificationType` controls the outgoing payload shape: `webhook` (default, full JSON), `slack` (`{"text": "..."}`), `discord` (`{"content": "..."}`), or `template` (arbitrary Go `text/template` string rendered against the full payload). This lets you target common platforms without an intermediary.
+
+## Config fields
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `teams` | Yes | -- | Array of teams to track |
+| `teams[].sport` | Yes | -- | Sport category (e.g. `hockey`, `football`) |
+| `teams[].league` | Yes | -- | League identifier (e.g. `nhl`, `nfl`) |
+| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `UTA`, `KC`) |
+| `notificationUrl` | See note | -- | Webhook URL to POST alerts to |
+| `notificationMethod` | No | `POST` | HTTP method for notifications |
+| `notificationHeaders` | No | -- | Extra headers (e.g. `{"Authorization": "******"}`) |
+| `notificationType` | No | `webhook` | Payload format: `webhook`, `slack`, `discord`, or `template` |
+| `notificationTemplate` | If `template` | -- | Go template string used when `notificationType` is `template` |
+| `stateFilePath` | No | `/var/lib/game-over-man/state.json` | Where to persist notification state |
+| `pruneAfterDays` | No | `30` | How many days to keep state entries before pruning |
 
 ## Default file paths
 
