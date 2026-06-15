@@ -14,9 +14,10 @@ const (
 )
 
 type teamConfig struct {
-	Sport        string `json:"sport"`
-	League       string `json:"league"`
-	Abbreviation string `json:"abbreviation"`
+	Sport          string `json:"sport"`
+	League         string `json:"league"`
+	Abbreviation   string `json:"abbreviation"`
+	PostseasonOnly bool   `json:"postseasonOnly"`
 }
 
 type appConfig struct {
