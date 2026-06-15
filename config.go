@@ -20,12 +20,14 @@ type teamConfig struct {
 }
 
 type appConfig struct {
-	Teams               []teamConfig      `json:"teams"`
-	NotificationURL     string            `json:"notificationUrl"`
-	NotificationMethod  string            `json:"notificationMethod"`
-	NotificationHeaders map[string]string `json:"notificationHeaders"`
-	StateFilePath       string            `json:"stateFilePath"`
-	PruneAfterDays      int               `json:"pruneAfterDays"`
+	Teams                []teamConfig      `json:"teams"`
+	NotificationURL      string            `json:"notificationUrl"`
+	NotificationMethod   string            `json:"notificationMethod"`
+	NotificationHeaders  map[string]string `json:"notificationHeaders"`
+	NotificationType     string            `json:"notificationType"`
+	NotificationTemplate string            `json:"notificationTemplate"`
+	StateFilePath        string            `json:"stateFilePath"`
+	PruneAfterDays       int               `json:"pruneAfterDays"`
 }
 
 func loadConfig() (*appConfig, error) {
@@ -63,6 +65,17 @@ func loadConfig() (*appConfig, error) {
 	}
 	if cfg.NotificationMethod == "" {
 		cfg.NotificationMethod = "POST"
+	}
+	if cfg.NotificationType == "" {
+		cfg.NotificationType = "webhook"
+	}
+	switch cfg.NotificationType {
+	case "webhook", "slack", "discord", "template":
+	default:
+		return nil, fmt.Errorf("invalid notificationType %q: must be webhook, slack, discord, or template", cfg.NotificationType)
+	}
+	if cfg.NotificationType == "template" && cfg.NotificationTemplate == "" {
+		return nil, fmt.Errorf("notificationTemplate is required when notificationType is \"template\"")
 	}
 
 	if len(cfg.Teams) == 0 {
