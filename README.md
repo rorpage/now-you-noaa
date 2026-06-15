@@ -7,6 +7,7 @@ It is a single Go binary with no runtime dependencies. Drop it on any Linux or m
 ## Features
 
 - Tracks teams across NFL, NHL, NBA, MLB, AHL, MLS, college football, college basketball, and more
+- Follow an entire league during the playoffs with a wildcard `"*"` abbreviation and `postseasonOnly: true`
 - One notification per completed game -- no duplicates, even across restarts
 - Built-in Slack and Discord payload presets; custom Go template support for any other platform
 - Webhook URL configurable via environment variable or config file
@@ -58,9 +59,9 @@ sudo nano /etc/game-over-man/config.json
 ```json
 {
   "teams": [
-    { "sport": "hockey",   "league": "nhl", "abbreviation": "UTA" },
-    { "sport": "hockey",   "league": "ahl", "abbreviation": "TUC" },
-    { "sport": "football", "league": "nfl", "abbreviation": "KC"  }
+    { "sport": "hockey",     "league": "nhl", "abbreviation": "CHI" },
+    { "sport": "football",   "league": "nfl", "abbreviation": "IND" },
+    { "sport": "basketball", "league": "nba", "abbreviation": "IND" }
   ]
 }
 ```
@@ -74,7 +75,8 @@ See `config.example.json` for a more complete example with all supported fields.
 | `teams` | Yes | -- | Array of teams to track |
 | `teams[].sport` | Yes | -- | Sport category (e.g. `hockey`, `football`) |
 | `teams[].league` | Yes | -- | League identifier (e.g. `nhl`, `nfl`) |
-| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `UTA`, `KC`) |
+| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `CHI`, `IND`), or `"*"` to match every team in the league |
+| `teams[].postseasonOnly` | No | `false` | When `true`, skip games that are not part of the postseason/playoffs |
 | `notificationUrl` | See note | -- | Webhook URL to POST alerts to |
 | `notificationMethod` | No | `POST` | HTTP method for notifications |
 | `notificationHeaders` | No | -- | Extra headers (e.g. `{"Authorization": "Bearer ..."}`) |
@@ -131,13 +133,14 @@ Each alert is an HTTP POST with `Content-Type: application/json`:
     "id": "401589012",
     "sport": "hockey",
     "league": "nhl",
-    "date": "2025-04-10T02:00:00Z",
-    "homeTeam": { "name": "Utah Hockey Club", "abbreviation": "UTA", "score": 4, "isHome": true },
+    "date": "2026-05-20T02:00:00Z",
+    "homeTeam": { "name": "Chicago Blackhawks", "abbreviation": "CHI", "score": 4, "isHome": true },
     "awayTeam": { "name": "Colorado Avalanche", "abbreviation": "COL", "score": 3, "isHome": false },
-    "statusDescription": "Final/OT"
+    "statusDescription": "Final/OT",
+    "isPostseason": true
   },
-  "summary": "Final: Utah Hockey Club 4, Colorado Avalanche 3 (Final/OT)",
-  "winner": "Utah Hockey Club",
+  "summary": "Final: Chicago Blackhawks 4, Colorado Avalanche 3 (Final/OT)",
+  "winner": "Chicago Blackhawks",
   "loser": "Colorado Avalanche",
   "isDraw": false
 }
@@ -193,6 +196,7 @@ Set `notificationType` to `"template"` and provide a `notificationTemplate` stri
 | `{{.Game.HomeTeam.Abbreviation}}` | Team abbreviation |
 | `{{.Game.Sport}}` / `{{.Game.League}}` | Sport and league |
 | `{{.Game.StatusDescription}}` | Status string (e.g. `Final`, `Final/OT`) |
+| `{{.Game.IsPostseason}}` | `true` if the game is part of the postseason/playoffs |
 
 Example — ntfy.sh with a plain-text title:
 

@@ -1,13 +1,13 @@
 {
   "teams": [
-    { "sport": "hockey",     "league": "nhl",                          "abbreviation": "UTA" },
-    { "sport": "hockey",     "league": "ahl",                          "abbreviation": "TUC" },
-    { "sport": "football",   "league": "nfl",                          "abbreviation": "KC"  },
-    { "sport": "basketball", "league": "nba",                          "abbreviation": "GSW" },
-    { "sport": "baseball",   "league": "mlb",                          "abbreviation": "NYY" },
-    { "sport": "soccer",     "league": "usa.1",                        "abbreviation": "PHI" },
-    { "sport": "football",   "league": "college-football",             "abbreviation": "ALA" },
-    { "sport": "basketball", "league": "mens-college-basketball",      "abbreviation": "UNC" }
+    { "sport": "hockey",     "league": "nhl",                          "abbreviation": "CHI" },
+    { "sport": "hockey",     "league": "nhl",                          "abbreviation": "*",   "postseasonOnly": true },
+    { "sport": "basketball", "league": "nba",                          "abbreviation": "IND" },
+    { "sport": "basketball", "league": "wnba",                         "abbreviation": "IND" },
+    { "sport": "football",   "league": "nfl",                          "abbreviation": "IND" },
+    { "sport": "baseball",   "league": "mlb",                          "abbreviation": "ATL" },
+    { "sport": "football",   "league": "college-football",             "abbreviation": "IND" },
+    { "sport": "basketball", "league": "mens-college-basketball",      "abbreviation": "IND" }
   ],
 
   "notificationUrl": "https://ntfy.sh/my-sports-alerts",

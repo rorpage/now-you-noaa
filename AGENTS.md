@@ -38,6 +38,7 @@ deploy/
 - **Config-file-first, env-var override.** `NOTIFICATION_URL`, `CONFIG_FILE`, and `STATE_FILE` env vars override their config file equivalents. Keep the notification URL in an env var to avoid committing secrets.
 - **Case-normalized inputs.** Sport and league values are lowercased; abbreviations are uppercased on config load so comparisons are always case-insensitive.
 - **Notification type presets.** `notificationType` controls the outgoing payload shape: `webhook` (default, full JSON), `slack` (`{"text": "..."}`), `discord` (`{"content": "..."}`), or `template` (arbitrary Go `text/template` string rendered against the full payload). This lets you target common platforms without an intermediary.
+- **Wildcard and postseason-only entries.** Setting `abbreviation` to `"*"` matches every team in that sport/league. Setting `postseasonOnly: true` suppresses notifications for regular-season games. Combine them to follow playoffs league-wide without knowing the teams in advance. Postseason detection uses the top-level `season.type` field from the ESPN scoreboard response (3 = postseason).
 
 ## Config fields
 
@@ -46,7 +47,8 @@ deploy/
 | `teams` | Yes | -- | Array of teams to track |
 | `teams[].sport` | Yes | -- | Sport category (e.g. `hockey`, `football`) |
 | `teams[].league` | Yes | -- | League identifier (e.g. `nhl`, `nfl`) |
-| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `UTA`, `KC`) |
+| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `CHI`, `IND`), or `"*"` to match every team in the league |
+| `teams[].postseasonOnly` | No | `false` | When `true`, skip games that are not part of the postseason/playoffs |
 | `notificationUrl` | See note | -- | Webhook URL to POST alerts to |
 | `notificationMethod` | No | `POST` | HTTP method for notifications |
 | `notificationHeaders` | No | -- | Extra headers (e.g. `{"Authorization": "******"}`) |
@@ -66,7 +68,7 @@ deploy/
 
 Base URL: `http://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard`
 
-This is an unofficial but stable ESPN endpoint. It returns today's games with scores and status. The `status.type.completed` boolean determines whether a game is final. `status.type.description` carries strings like `"Final"`, `"Final/OT"`, `"Final/SO"`.
+This is an unofficial but stable ESPN endpoint. It returns today's games with scores and status. The `status.type.completed` boolean determines whether a game is final. `status.type.description` carries strings like `"Final"`, `"Final/OT"`, `"Final/SO"`. The top-level `season.type` integer indicates the season phase: `2` = regular season, `3` = postseason. This is used to populate `gameResult.IsPostseason` and evaluate `postseasonOnly` config entries.
 
 Known working sport/league pairs: `football/nfl`, `football/college-football`, `basketball/nba`, `basketball/wnba`, `basketball/mens-college-basketball`, `basketball/womens-college-basketball`, `baseball/mlb`, `hockey/nhl`, `hockey/ahl`, `soccer/usa.1`, `soccer/usa.nwsl`, `soccer/eng.1`, `soccer/esp.1`, `soccer/ita.1`, `soccer/ger.1`, `soccer/fra.1`, `soccer/uefa.champions`.
 
@@ -79,6 +81,17 @@ Known working sport/league pairs: `football/nfl`, `football/college-football`, `
 ## Notification payload shape
 
 ```go
+type gameResult struct {
+    ID                string     `json:"id"`
+    Sport             string     `json:"sport"`
+    League            string     `json:"league"`
+    Date              string     `json:"date"`
+    HomeTeam          competitor `json:"homeTeam"`
+    AwayTeam          competitor `json:"awayTeam"`
+    StatusDescription string     `json:"statusDescription"`
+    IsPostseason      bool       `json:"isPostseason"`
+}
+
 type notificationPayload struct {
     Game    gameResult `json:"game"`
     Summary string     `json:"summary"`

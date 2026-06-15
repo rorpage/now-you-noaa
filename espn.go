@@ -25,11 +25,17 @@ type gameResult struct {
 	HomeTeam          competitor `json:"homeTeam"`
 	AwayTeam          competitor `json:"awayTeam"`
 	StatusDescription string     `json:"statusDescription"`
+	IsPostseason      bool       `json:"isPostseason"`
 }
 
 // ESPN API response shapes
 
+type espnSeason struct {
+	Type int `json:"type"` // 1=preseason, 2=regular, 3=postseason
+}
+
 type espnScoreboard struct {
+	Season espnSeason  `json:"season"`
 	Events []espnEvent `json:"events"`
 }
 
@@ -82,19 +88,21 @@ func fetchScoreboard(sport, league string) ([]gameResult, error) {
 		return nil, fmt.Errorf("decoding %s response: %w", url, err)
 	}
 
+	isPostseason := sb.Season.Type == 3
+
 	var results []gameResult
 	for _, event := range sb.Events {
 		if !event.Status.Type.Completed {
 			continue
 		}
-		if game, ok := parseEvent(event, sport, league); ok {
+		if game, ok := parseEvent(event, sport, league, isPostseason); ok {
 			results = append(results, game)
 		}
 	}
 	return results, nil
 }
 
-func parseEvent(event espnEvent, sport, league string) (gameResult, bool) {
+func parseEvent(event espnEvent, sport, league string, isPostseason bool) (gameResult, bool) {
 	if len(event.Competitions) == 0 {
 		return gameResult{}, false
 	}
@@ -132,6 +140,7 @@ func parseEvent(event espnEvent, sport, league string) (gameResult, bool) {
 			IsHome:       false,
 		},
 		StatusDescription: event.Status.Type.Description,
+		IsPostseason:      isPostseason,
 	}, true
 }
 
@@ -144,6 +153,12 @@ func isTrackedGame(game gameResult, teams []teamConfig) bool {
 	for _, t := range teams {
 		if t.Sport != game.Sport || t.League != game.League {
 			continue
+		}
+		if t.PostseasonOnly && !game.IsPostseason {
+			continue
+		}
+		if t.Abbreviation == "*" {
+			return true
 		}
 		if t.Abbreviation == game.HomeTeam.Abbreviation || t.Abbreviation == game.AwayTeam.Abbreviation {
 			return true
