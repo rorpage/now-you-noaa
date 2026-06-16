@@ -1,14 +1,14 @@
-# Game Over Man
+# Now You NOAA
 
-A sports score notifier for home servers. It polls the ESPN API for final scores across multiple sports and leagues, then fires a single webhook notification per game for each team you care about. No score goes unnoticed; no notification repeats.
+A NOAA weather alert notifier for home servers. It polls the NOAA Weather API for active alerts in the areas you configure, then fires a single webhook notification per alert. No alert goes unnoticed; no notification repeats.
 
 It is a single Go binary with no runtime dependencies. Drop it on any Linux or macOS machine, point it at a config file, and schedule it with cron or systemd.
 
 ## Features
 
-- Tracks teams across NFL, NHL, NBA, MLB, AHL, MLS, college football, college basketball, and more
-- Follow an entire league during the playoffs with a wildcard `"*"` abbreviation and `postseasonOnly: true`
-- One notification per completed game -- no duplicates, even across restarts
+- Monitors any U.S. state or NOAA forecast zone for active weather alerts
+- Filter by event type (e.g. Tornado Warning, Severe Thunderstorm Warning) and severity
+- One notification per alert -- no duplicates, even across restarts
 - Built-in Slack and Discord payload presets; custom Go template support for any other platform
 - Webhook URL configurable via environment variable or config file
 - Custom HTTP headers supported (for auth tokens and other per-platform requirements)
@@ -19,21 +19,21 @@ It is a single Go binary with no runtime dependencies. Drop it on any Linux or m
 
 ### Download a pre-built binary (recommended)
 
-Download the appropriate binary for your platform from the [Releases](https://github.com/rorpage/game-over-man/releases) page:
+Download the appropriate binary for your platform from the [Releases](https://github.com/rorpage/now-you-noaa/releases) page:
 
 | Platform | File |
 |---|---|
-| Linux x86-64 | `game-over-man-linux-amd64` |
-| Linux ARM64 (Raspberry Pi, etc.) | `game-over-man-linux-arm64` |
-| macOS Intel | `game-over-man-darwin-amd64` |
-| macOS Apple Silicon | `game-over-man-darwin-arm64` |
-| Windows x86-64 | `game-over-man-windows-amd64.exe` |
+| Linux x86-64 | `now-you-noaa-linux-amd64` |
+| Linux ARM64 (Raspberry Pi, etc.) | `now-you-noaa-linux-arm64` |
+| macOS Intel | `now-you-noaa-darwin-amd64` |
+| macOS Apple Silicon | `now-you-noaa-darwin-arm64` |
+| Windows x86-64 | `now-you-noaa-windows-amd64.exe` |
 
 ```bash
 # Example: Linux x86-64
-curl -fsSL https://github.com/rorpage/game-over-man/releases/latest/download/game-over-man-linux-amd64 \
-  -o /usr/local/bin/game-over-man
-chmod +x /usr/local/bin/game-over-man
+curl -fsSL https://github.com/rorpage/now-you-noaa/releases/latest/download/now-you-noaa-linux-amd64 \
+  -o /usr/local/bin/now-you-noaa
+chmod +x /usr/local/bin/now-you-noaa
 ```
 
 ### Build from source
@@ -41,27 +41,28 @@ chmod +x /usr/local/bin/game-over-man
 Requires Go 1.22+.
 
 ```bash
-git clone https://github.com/rorpage/game-over-man.git
-cd game-over-man
-CGO_ENABLED=0 go build -ldflags="-s -w" -o game-over-man .
-sudo mv game-over-man /usr/local/bin/
+git clone https://github.com/rorpage/now-you-noaa.git
+cd now-you-noaa
+CGO_ENABLED=0 go build -ldflags="-s -w" -o now-you-noaa .
+sudo mv now-you-noaa /usr/local/bin/
 ```
 
 ## Configuration
 
-Create a config file at `/etc/game-over-man/config.json`:
+Create a config file at `/etc/now-you-noaa/config.json`:
 
 ```bash
-sudo mkdir -p /etc/game-over-man
-sudo nano /etc/game-over-man/config.json
+sudo mkdir -p /etc/now-you-noaa
+sudo nano /etc/now-you-noaa/config.json
 ```
 
 ```json
 {
-  "teams": [
-    { "sport": "hockey",     "league": "nhl", "abbreviation": "CHI" },
-    { "sport": "football",   "league": "nfl", "abbreviation": "IND" },
-    { "sport": "basketball", "league": "nba", "abbreviation": "IND" }
+  "areas": ["IN"],
+  "eventTypes": [
+    "Tornado Warning",
+    "Severe Thunderstorm Warning",
+    "Flash Flood Warning"
   ]
 }
 ```
@@ -72,18 +73,20 @@ See `config.example.json` for a more complete example with all supported fields.
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `teams` | Yes | -- | Array of teams to track |
-| `teams[].sport` | Yes | -- | Sport category (e.g. `hockey`, `football`) |
-| `teams[].league` | Yes | -- | League identifier (e.g. `nhl`, `nfl`) |
-| `teams[].abbreviation` | Yes | -- | Team abbreviation as used by ESPN (e.g. `CHI`, `IND`), or `"*"` to match every team in the league |
-| `teams[].postseasonOnly` | No | `false` | When `true`, skip games that are not part of the postseason/playoffs |
+| `areas` | See note | -- | Array of state abbreviations to monitor (e.g. `["IN", "OH"]`) |
+| `zones` | See note | -- | Array of NOAA zone codes to monitor (e.g. `["INZ032", "INZ050"]`) |
+| `eventTypes` | No | all | Array of event type strings to match (e.g. `["Tornado Warning"]`). Empty means all events. |
+| `severity` | No | all | Array of severity levels to match: `Extreme`, `Severe`, `Moderate`, `Minor`. Empty means all. |
+| `userAgent` | No | built-in | User-Agent header sent to NOAA API. Override to identify your instance. |
 | `notificationUrl` | See note | -- | Webhook URL to POST alerts to |
 | `notificationMethod` | No | `POST` | HTTP method for notifications |
 | `notificationHeaders` | No | -- | Extra headers (e.g. `{"Authorization": "Bearer ..."}`) |
 | `notificationType` | No | `webhook` | Payload format: `webhook`, `slack`, `discord`, or `template` |
 | `notificationTemplate` | If `template` | -- | Go template string used when `notificationType` is `template` |
-| `stateFilePath` | No | `/var/lib/game-over-man/state.json` | Where to persist notification state |
-| `pruneAfterDays` | No | `30` | How many days to keep state entries before pruning |
+| `stateFilePath` | No | `/var/lib/now-you-noaa/state.json` | Where to persist notification state |
+| `pruneAfterDays` | No | `7` | How many days to keep state entries before pruning |
+
+**Areas or zones:** At least one `area` or `zone` is required. Both can be configured simultaneously; duplicate alerts are suppressed.
 
 **Notification URL:** Set via the `NOTIFICATION_URL` environment variable (preferred, keeps it out of the config file) or as `notificationUrl` in the config. The env var takes precedence.
 
@@ -92,37 +95,40 @@ See `config.example.json` for a more complete example with all supported fields.
 | Variable | Description |
 |---|---|
 | `NOTIFICATION_URL` | Webhook URL (overrides `notificationUrl` in config) |
-| `CONFIG_FILE` | Path to config file (default: `/etc/game-over-man/config.json`) |
-| `STATE_FILE` | Path to state file (default: `/var/lib/game-over-man/state.json`) |
+| `CONFIG_FILE` | Path to config file (default: `/etc/now-you-noaa/config.json`) |
+| `STATE_FILE` | Path to state file (default: `/var/lib/now-you-noaa/state.json`) |
 
-## Supported Leagues
+## Finding Your Zone Codes
 
-| Sport | League | `sport` value | `league` value |
-|---|---|---|---|
-| Football | NFL | `football` | `nfl` |
-| Football | College Football | `football` | `college-football` |
-| Basketball | NBA | `basketball` | `nba` |
-| Basketball | WNBA | `basketball` | `wnba` |
-| Basketball | Men's NCAA | `basketball` | `mens-college-basketball` |
-| Basketball | Women's NCAA | `basketball` | `womens-college-basketball` |
-| Baseball | MLB | `baseball` | `mlb` |
-| Hockey | NHL | `hockey` | `nhl` |
-| Hockey | AHL | `hockey` | `ahl` |
-| Soccer | MLS | `soccer` | `usa.1` |
-| Soccer | NWSL | `soccer` | `usa.nwsl` |
-| Soccer | Premier League | `soccer` | `eng.1` |
-| Soccer | La Liga | `soccer` | `esp.1` |
-| Soccer | Serie A | `soccer` | `ita.1` |
-| Soccer | Bundesliga | `soccer` | `ger.1` |
-| Soccer | Ligue 1 | `soccer` | `fra.1` |
-| Soccer | Champions League | `soccer` | `uefa.champions` |
-| Soccer | FIFA World Cup | `soccer` | `fifa.world` |
+NOAA divides the U.S. into forecast zones. Zone codes follow the pattern `SSZnnn` where `SS` is the state abbreviation and `nnn` is a three-digit number (e.g. `INZ032` is the Marion County, Indiana zone).
 
-The ESPN API may support additional leagues. Test any `sport`/`league` pair with:
+To find zone codes for your area:
 
-```bash
-curl "http://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard"
-```
+1. Visit [alerts.weather.gov](https://alerts.weather.gov/) and look at your local NWS office
+2. Query the API directly: `curl "https://api.weather.gov/zones?area=IN&type=forecast"`
+3. Use the state-level `areas` filter instead -- it covers all zones in the state
+
+## Common Event Types
+
+These are the most commonly watched NOAA event types. Event type strings are case-sensitive in config.
+
+| Event Type | Severity |
+|---|---|
+| Tornado Warning | Extreme |
+| Tornado Watch | Severe |
+| Severe Thunderstorm Warning | Severe |
+| Severe Thunderstorm Watch | Moderate |
+| Flash Flood Warning | Severe |
+| Flash Flood Watch | Moderate |
+| Flood Warning | Moderate |
+| Winter Storm Warning | Severe |
+| Blizzard Warning | Extreme |
+| Ice Storm Warning | Severe |
+| High Wind Warning | Severe |
+| Excessive Heat Warning | Extreme |
+| Special Weather Statement | -- |
+
+Leave `eventTypes` empty to receive all active alerts for your configured areas.
 
 ## Notification Payload
 
@@ -130,28 +136,26 @@ Each alert is an HTTP POST with `Content-Type: application/json`:
 
 ```json
 {
-  "game": {
-    "id": "401589012",
-    "sport": "hockey",
-    "league": "nhl",
-    "date": "2026-05-20T02:00:00Z",
-    "homeTeam": { "name": "Chicago Blackhawks", "abbreviation": "CHI", "score": 4, "isHome": true },
-    "awayTeam": { "name": "Colorado Avalanche", "abbreviation": "COL", "score": 3, "isHome": false },
-    "statusDescription": "Final/OT",
-    "isPostseason": true
+  "alert": {
+    "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.abc123",
+    "event": "Tornado Warning",
+    "headline": "Tornado Warning issued June 16 at 2:15PM EDT until 2:45 PM EDT",
+    "severity": "Extreme",
+    "urgency": "Immediate",
+    "certainty": "Observed",
+    "areaDesc": "Marion; Hamilton",
+    "senderName": "NWS Indianapolis IN",
+    "sent": "2026-06-16T18:15:00+00:00",
+    "effective": "2026-06-16T18:15:00+00:00",
+    "onset": "2026-06-16T18:15:00+00:00",
+    "expires": "2026-06-16T18:45:00+00:00",
+    "ends": "",
+    "description": "...",
+    "instruction": "TAKE COVER NOW!"
   },
-  "summary": "Final: Chicago Blackhawks 4, Colorado Avalanche 3 (Final/OT)",
-  "winner": "Chicago Blackhawks",
-  "loser": "Colorado Avalanche",
-  "isDraw": false
+  "summary": "Tornado Warning issued June 16 at 2:15PM EDT until 2:45 PM EDT"
 }
 ```
-
-`winner` and `loser` are `null` when the game ends in a draw.
-
-### ntfy.sh
-
-Point `notificationUrl` at your topic URL (e.g. `https://ntfy.sh/my-sports-alerts`). The full JSON payload will be the body. To show just the `summary` as a plain-text push notification, use ntfy's [message templating](https://docs.ntfy.sh) or run a small proxy.
 
 ### Notification types
 
@@ -160,8 +164,8 @@ The `notificationType` field controls the outgoing payload shape:
 | Type | Payload sent |
 |---|---|
 | `webhook` (default) | Full JSON object (see [Notification Payload](#notification-payload)) |
-| `slack` | `{"text": "<summary>"}` — ready for a Slack incoming webhook URL |
-| `discord` | `{"content": "<summary>"}` — ready for a Discord webhook URL |
+| `slack` | `{"text": "<summary>"}` -- ready for a Slack incoming webhook URL |
+| `discord` | `{"content": "<summary>"}` -- ready for a Discord webhook URL |
 | `template` | Output of your Go template, rendered against the payload data |
 
 **Slack:**
@@ -188,30 +192,30 @@ Set `notificationType` to `"template"` and provide a `notificationTemplate` stri
 
 | Variable | Description |
 |---|---|
-| `{{.Summary}}` | Pre-built summary string (e.g. `Final: Utah HC 4, Colorado 3 (OT)`) |
-| `{{.Winner}}` | Winner's name, or empty if a draw |
-| `{{.Loser}}` | Loser's name, or empty if a draw |
-| `{{.IsDraw}}` | `true` if the game ended in a draw |
-| `{{.Game.HomeTeam.Name}}` / `{{.Game.AwayTeam.Name}}` | Team names |
-| `{{.Game.HomeTeam.Score}}` / `{{.Game.AwayTeam.Score}}` | Final scores |
-| `{{.Game.HomeTeam.Abbreviation}}` | Team abbreviation |
-| `{{.Game.Sport}}` / `{{.Game.League}}` | Sport and league |
-| `{{.Game.StatusDescription}}` | Status string (e.g. `Final`, `Final/OT`) |
-| `{{.Game.IsPostseason}}` | `true` if the game is part of the postseason/playoffs |
+| `{{.Summary}}` | Pre-built summary string (the alert headline, or event + area) |
+| `{{.Alert.Event}}` | Event type (e.g. `Tornado Warning`) |
+| `{{.Alert.Headline}}` | Alert headline text |
+| `{{.Alert.Severity}}` | Severity level (`Extreme`, `Severe`, `Moderate`, `Minor`) |
+| `{{.Alert.Urgency}}` | Urgency level (`Immediate`, `Expected`, `Future`) |
+| `{{.Alert.AreaDesc}}` | Affected area description |
+| `{{.Alert.SenderName}}` | Issuing NWS office (e.g. `NWS Indianapolis IN`) |
+| `{{.Alert.Expires}}` | Expiration time (RFC 3339) |
+| `{{.Alert.Instruction}}` | Safety instructions |
+| `{{.Alert.Description}}` | Full alert description |
 
-Example — ntfy.sh with a plain-text title:
+Example -- ntfy.sh with a plain-text title:
 
 ```json
 {
-  "notificationUrl": "https://ntfy.sh/my-sports-alerts",
+  "notificationUrl": "https://ntfy.sh/my-weather-alerts",
   "notificationType": "template",
-  "notificationTemplate": "{\"topic\": \"my-sports-alerts\", \"message\": \"{{.Summary}}\"}"
+  "notificationTemplate": "{\"topic\": \"my-weather-alerts\", \"message\": \"{{.Summary}}\"}"
 }
 ```
 
 ## Scheduling
 
-The binary is a one-shot job: it runs, checks scores, and exits.
+The binary is a one-shot job: it runs, checks for new alerts, and exits.
 
 ### systemd timer (recommended)
 
@@ -223,40 +227,40 @@ systemd timers have proper log capture via `journalctl`, survive reboots cleanly
 sudo bash deploy/systemd/install.sh
 ```
 
-The script downloads the latest binary from GitHub Releases (or builds from source if Go is available), creates a `game-over-man` system user, sets up `/etc/game-over-man/` and `/var/lib/game-over-man/`, and enables the timer. Then:
+The script downloads the latest binary from GitHub Releases (or builds from source if Go is available), creates a `now-you-noaa` system user, sets up `/etc/now-you-noaa/` and `/var/lib/now-you-noaa/`, and enables the timer. Then:
 
 ```bash
 # Set your notification URL
-sudo nano /etc/game-over-man/env
+sudo nano /etc/now-you-noaa/env
 
 # Copy your config
-sudo cp config.json /etc/game-over-man/config.json
-sudo chown root:game-over-man /etc/game-over-man/config.json
+sudo cp config.json /etc/now-you-noaa/config.json
+sudo chown root:now-you-noaa /etc/now-you-noaa/config.json
 
 # Start
-sudo systemctl start game-over-man.timer
+sudo systemctl start now-you-noaa.timer
 ```
 
 **Useful commands:**
 
 ```bash
-systemctl status game-over-man.timer     # next scheduled run
-systemctl start game-over-man.service    # run immediately
-journalctl -u game-over-man -f           # follow logs
+systemctl status now-you-noaa.timer     # next scheduled run
+systemctl start now-you-noaa.service    # run immediately
+journalctl -u now-you-noaa -f           # follow logs
 ```
 
-**Changing the schedule:** Edit `/etc/systemd/system/game-over-man.timer`, update `OnCalendar`, then:
+**Changing the schedule:** Edit `/etc/systemd/system/now-you-noaa.timer`, update `OnCalendar`, then:
 
 ```bash
-sudo systemctl daemon-reload && sudo systemctl restart game-over-man.timer
+sudo systemctl daemon-reload && sudo systemctl restart now-you-noaa.timer
 ```
 
 Common values:
 
 ```ini
-OnCalendar=*:0/10    # every 10 minutes (default)
-OnCalendar=*:0/5     # every 5 minutes
-OnCalendar=hourly    # once per hour
+OnCalendar=*:0/5     # every 5 minutes (default)
+OnCalendar=*:0/10    # every 10 minutes
+OnCalendar=minutely  # every minute
 ```
 
 ### cron
@@ -264,39 +268,40 @@ OnCalendar=hourly    # once per hour
 Add a line to your crontab with `crontab -e`:
 
 ```cron
-*/10 * * * * NOTIFICATION_URL=https://ntfy.sh/my-sports-alerts /usr/local/bin/game-over-man
+*/5 * * * * NOTIFICATION_URL=https://ntfy.sh/my-weather-alerts /usr/local/bin/now-you-noaa
 ```
 
 Or if you prefer an env file:
 
 ```cron
-*/10 * * * * env $(cat /etc/game-over-man/env | xargs) /usr/local/bin/game-over-man
+*/5 * * * * env $(cat /etc/now-you-noaa/env | xargs) /usr/local/bin/now-you-noaa
 ```
 
-Logs go to syslog (`journalctl -t game-over-man` or `/var/log/syslog`).
+Logs go to syslog (`journalctl -t now-you-noaa` or `/var/log/syslog`).
 
 ## How It Works
 
-1. Load config from `CONFIG_FILE` (default: `/etc/game-over-man/config.json`)
+1. Load config from `CONFIG_FILE` (default: `/etc/now-you-noaa/config.json`)
 2. Load notification state from `STATE_FILE`, pruning entries older than `pruneAfterDays`
-3. For each unique sport/league in the team list, fetch today's scoreboard from the ESPN API
-4. For each completed game involving a tracked team, check whether a notification was already sent
-5. If not, POST the notification payload to the configured URL and record the game ID in state
-6. Save state to disk
+3. Fetch active alerts from the NOAA API for all configured `areas` and `zones`
+4. Filter alerts by `eventTypes` and `severity` (if configured)
+5. For each matching alert, check whether a notification was already sent
+6. If not, POST the notification payload to the configured URL and record the alert ID in state
+7. Save state to disk
 
-The state file is the single source of truth for idempotency. As long as it persists across runs, no game will ever trigger more than one notification.
+The state file is the single source of truth for idempotency. As long as it persists across runs, no alert will ever trigger more than one notification.
 
 ## Versioning
 
-Releases are created automatically on every push to `main`. The version follows CalVer: `YYYY.MM.DD.N` where N is the GitHub Actions run number (e.g. `2026.06.13.4`). No manual tagging required.
+Releases are created automatically on every push to `main`. The version follows CalVer: `YYYY.MM.DD.N` where N is the GitHub Actions run number (e.g. `2026.06.16.1`). No manual tagging required.
 
 The version is embedded in the binary at build time:
 
 ```bash
-game-over-man --version
-# 2026.06.13.4
+now-you-noaa --version
+# 2026.06.16.1
 ```
 
 When running locally from source, `--version` prints `dev`.
 
-The latest release is always available at `https://github.com/rorpage/game-over-man/releases/latest`.
+The latest release is always available at `https://github.com/rorpage/now-you-noaa/releases/latest`.
