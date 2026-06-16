@@ -1,0 +1,10 @@
+[Unit]
+Description=Now You NOAA weather alert notifier -- run every 5 minutes
+Documentation=https://github.com/rorpage/now-you-noaa
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target

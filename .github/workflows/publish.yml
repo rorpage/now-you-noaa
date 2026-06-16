@@ -35,7 +35,7 @@ jobs:
             EXT="$( [ "$GOOS" = "windows" ] && echo ".exe" || echo "" )"
             CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build \
               -ldflags="-s -w -X main.version=${VERSION}" \
-              -o "dist/game-over-man-${GOOS}-${GOARCH}${EXT}" .
+              -o "dist/now-you-noaa-${GOOS}-${GOARCH}${EXT}" .
           done
 
       - name: Create release

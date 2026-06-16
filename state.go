@@ -10,12 +10,12 @@ import (
 )
 
 type stateEntry struct {
-	GameID     string `json:"gameId"`
+	AlertID    string `json:"alertId"`
 	NotifiedAt string `json:"notifiedAt"`
 }
 
 type appState struct {
-	NotifiedGames []stateEntry `json:"notifiedGames"`
+	NotifiedAlerts []stateEntry `json:"notifiedAlerts"`
 }
 
 func loadState(path string) appState {
@@ -47,10 +47,10 @@ func saveState(path string, s appState) error {
 
 func pruneState(s appState, days int) appState {
 	cutoff := time.Now().AddDate(0, 0, -days)
-	before := len(s.NotifiedGames)
+	before := len(s.NotifiedAlerts)
 
-	kept := s.NotifiedGames[:0]
-	for _, e := range s.NotifiedGames {
+	kept := s.NotifiedAlerts[:0]
+	for _, e := range s.NotifiedAlerts {
 		t, err := time.Parse(time.RFC3339, e.NotifiedAt)
 		if err != nil || t.After(cutoff) {
 			kept = append(kept, e)
@@ -60,21 +60,21 @@ func pruneState(s appState, days int) appState {
 	if pruned := before - len(kept); pruned > 0 {
 		log.Printf("[state] pruned %d old entr%s (older than %d days)", pruned, pluralSuffix(pruned, "y", "ies"), days)
 	}
-	return appState{NotifiedGames: kept}
+	return appState{NotifiedAlerts: kept}
 }
 
-func hasBeenNotified(s appState, gameID string) bool {
-	for _, e := range s.NotifiedGames {
-		if e.GameID == gameID {
+func hasBeenNotified(s appState, alertID string) bool {
+	for _, e := range s.NotifiedAlerts {
+		if e.AlertID == alertID {
 			return true
 		}
 	}
 	return false
 }
 
-func markNotified(s *appState, gameID string) {
-	s.NotifiedGames = append(s.NotifiedGames, stateEntry{
-		GameID:     gameID,
+func markNotified(s *appState, alertID string) {
+	s.NotifiedAlerts = append(s.NotifiedAlerts, stateEntry{
+		AlertID:    alertID,
 		NotifiedAt: time.Now().UTC().Format(time.RFC3339),
 	})
 }

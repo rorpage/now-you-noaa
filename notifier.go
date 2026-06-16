@@ -9,36 +9,18 @@ import (
 )
 
 type notificationPayload struct {
-	Game    gameResult `json:"game"`
-	Summary string     `json:"summary"`
-	Winner  *string    `json:"winner"`
-	Loser   *string    `json:"loser"`
-	IsDraw  bool       `json:"isDraw"`
+	Alert   alertResult `json:"alert"`
+	Summary string      `json:"summary"`
 }
 
-func buildPayload(game gameResult) notificationPayload {
-	home, away := game.HomeTeam, game.AwayTeam
-	isDraw := home.Score == away.Score
-
-	var winner, loser *string
-	var summary string
-
-	if isDraw {
-		summary = fmt.Sprintf("Final: %s %d, %s %d -- Draw (%s)",
-			away.Name, away.Score, home.Name, home.Score, game.StatusDescription)
-	} else {
-		w, l := home, away
-		if away.Score > home.Score {
-			w, l = away, home
-		}
-		wn, ln := w.Name, l.Name
-		winner = &wn
-		loser = &ln
-		summary = fmt.Sprintf("Final: %s %d, %s %d (%s)",
-			w.Name, w.Score, l.Name, l.Score, game.StatusDescription)
+func buildPayload(alert alertResult) notificationPayload {
+	summary := alert.Event
+	if alert.Headline != "" {
+		summary = alert.Headline
+	} else if alert.AreaDesc != "" {
+		summary = fmt.Sprintf("%s: %s", alert.Event, alert.AreaDesc)
 	}
-
-	return notificationPayload{Game: game, Summary: summary, Winner: winner, Loser: loser, IsDraw: isDraw}
+	return notificationPayload{Alert: alert, Summary: summary}
 }
 
 func buildBody(cfg *appConfig, payload notificationPayload) ([]byte, error) {
@@ -62,8 +44,8 @@ func buildBody(cfg *appConfig, payload notificationPayload) ([]byte, error) {
 	}
 }
 
-func sendNotification(cfg *appConfig, game gameResult) error {
-	payload := buildPayload(game)
+func sendNotification(cfg *appConfig, alert alertResult) error {
+	payload := buildPayload(alert)
 
 	body, err := buildBody(cfg, payload)
 	if err != nil {

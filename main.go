@@ -17,50 +17,35 @@ func main() {
 		return
 	}
 
-	fmt.Printf("=== Game Over Man %s ===\n", version)
+	fmt.Printf("=== Now You NOAA %s ===\n", version)
 
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("[config] %v", err)
 	}
-	log.Printf("[config] tracking %d team(s)", len(cfg.Teams))
+	log.Printf("[config] monitoring %d area(s), %d zone(s)", len(cfg.Areas), len(cfg.Zones))
 
 	state := loadState(cfg.StateFilePath)
 	state = pruneState(state, cfg.PruneAfterDays)
 
-	seen := make(map[string]bool)
+	alerts, err := fetchAlerts(cfg)
+	if err != nil {
+		log.Fatalf("[noaa] %v", err)
+	}
+	log.Printf("[noaa] %d active alert(s) found", len(alerts))
+
 	notified := 0
-
-	for _, t := range cfg.Teams {
-		key := t.Sport + "/" + t.League
-		if seen[key] {
+	for _, alert := range alerts {
+		if hasBeenNotified(state, alert.ID) {
+			log.Printf("[state] already notified for alert %s, skipping", alert.ID)
 			continue
 		}
-		seen[key] = true
-
-		log.Printf("[espn] fetching %s...", key)
-		games, err := fetchScoreboard(t.Sport, t.League)
-		if err != nil {
-			log.Printf("[espn] %v", err)
+		if err := sendNotification(cfg, alert); err != nil {
+			log.Printf("[notify] %v", err)
 			continue
 		}
-		log.Printf("[espn] %d completed game(s)", len(games))
-
-		for _, game := range games {
-			if !isTrackedGame(game, cfg.Teams) {
-				continue
-			}
-			if hasBeenNotified(state, game.ID) {
-				log.Printf("[state] already notified for game %s, skipping", game.ID)
-				continue
-			}
-			if err := sendNotification(cfg, game); err != nil {
-				log.Printf("[notify] %v", err)
-				continue
-			}
-			markNotified(&state, game.ID)
-			notified++
-		}
+		markNotified(&state, alert.ID)
+		notified++
 	}
 
 	if err := saveState(cfg.StateFilePath, state); err != nil {

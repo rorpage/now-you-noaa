@@ -1,0 +1,13 @@
+[Unit]
+Description=Now You NOAA weather alert notifier
+Documentation=https://github.com/rorpage/now-you-noaa
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=now-you-noaa
+EnvironmentFile=/etc/now-you-noaa/env
+ExecStart=/usr/local/bin/now-you-noaa
+StandardOutput=journal
+StandardError=journal

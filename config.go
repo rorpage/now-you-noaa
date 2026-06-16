@@ -8,20 +8,18 @@ import (
 )
 
 const (
-	defaultConfigFile = "/etc/game-over-man/config.json"
-	defaultStateFile  = "/var/lib/game-over-man/state.json"
-	defaultPruneDays  = 30
+	defaultConfigFile = "/etc/now-you-noaa/config.json"
+	defaultStateFile  = "/var/lib/now-you-noaa/state.json"
+	defaultPruneDays  = 7
+	defaultUserAgent  = "now-you-noaa (https://github.com/rorpage/now-you-noaa)"
 )
 
-type teamConfig struct {
-	Sport          string `json:"sport"`
-	League         string `json:"league"`
-	Abbreviation   string `json:"abbreviation"`
-	PostseasonOnly bool   `json:"postseasonOnly"`
-}
-
 type appConfig struct {
-	Teams                []teamConfig      `json:"teams"`
+	Areas                []string          `json:"areas"`
+	Zones                []string          `json:"zones"`
+	EventTypes           []string          `json:"eventTypes"`
+	Severity             []string          `json:"severity"`
+	UserAgent            string            `json:"userAgent"`
 	NotificationURL      string            `json:"notificationUrl"`
 	NotificationMethod   string            `json:"notificationMethod"`
 	NotificationHeaders  map[string]string `json:"notificationHeaders"`
@@ -79,13 +77,19 @@ func loadConfig() (*appConfig, error) {
 		return nil, fmt.Errorf("notificationTemplate is required when notificationType is \"template\"")
 	}
 
-	if len(cfg.Teams) == 0 {
-		return nil, fmt.Errorf("no teams configured in %s", path)
+	if len(cfg.Areas) == 0 && len(cfg.Zones) == 0 {
+		return nil, fmt.Errorf("at least one area or zone required in %s", path)
 	}
-	for i := range cfg.Teams {
-		cfg.Teams[i].Sport = strings.ToLower(cfg.Teams[i].Sport)
-		cfg.Teams[i].League = strings.ToLower(cfg.Teams[i].League)
-		cfg.Teams[i].Abbreviation = strings.ToUpper(cfg.Teams[i].Abbreviation)
+
+	for i := range cfg.Areas {
+		cfg.Areas[i] = strings.ToUpper(cfg.Areas[i])
+	}
+	for i := range cfg.Zones {
+		cfg.Zones[i] = strings.ToUpper(cfg.Zones[i])
+	}
+
+	if cfg.UserAgent == "" {
+		cfg.UserAgent = defaultUserAgent
 	}
 
 	return &cfg, nil

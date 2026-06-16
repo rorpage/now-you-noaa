@@ -1,20 +1,20 @@
 {
-  "teams": [
-    { "sport": "hockey",     "league": "nhl",                          "abbreviation": "CHI" },
-    { "sport": "hockey",     "league": "nhl",                          "abbreviation": "*",   "postseasonOnly": true },
-    { "sport": "basketball", "league": "nba",                          "abbreviation": "IND" },
-    { "sport": "basketball", "league": "wnba",                         "abbreviation": "IND" },
-    { "sport": "football",   "league": "nfl",                          "abbreviation": "IND" },
-    { "sport": "baseball",   "league": "mlb",                          "abbreviation": "ATL" },
-    { "sport": "football",   "league": "college-football",             "abbreviation": "IND" },
-    { "sport": "basketball", "league": "mens-college-basketball",      "abbreviation": "IND" }
+  "areas": ["IN"],
+
+  "eventTypes": [
+    "Tornado Warning",
+    "Tornado Watch",
+    "Severe Thunderstorm Warning",
+    "Severe Thunderstorm Watch",
+    "Flash Flood Warning",
+    "Flash Flood Watch"
   ],
 
-  "notificationUrl": "https://ntfy.sh/my-sports-alerts",
+  "notificationUrl": "https://ntfy.sh/my-weather-alerts",
 
   "notificationType": "webhook",
 
   "stateFilePath": "/data/state.json",
 
-  "pruneAfterDays": 30
+  "pruneAfterDays": 7
 }

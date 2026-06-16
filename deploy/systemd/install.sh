@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Installs game-over-man binary + systemd timer.
+# Installs now-you-noaa binary + systemd timer.
 # Tries to download a pre-built binary from GitHub Releases; falls back to
 # building from source if Go is available.
 # Run as root: sudo ./install.sh
 set -euo pipefail
 
 INSTALL_DIR=/usr/local/bin
-CONFIG_DIR=/etc/game-over-man
-DATA_DIR=/var/lib/game-over-man
+CONFIG_DIR=/etc/now-you-noaa
+DATA_DIR=/var/lib/now-you-noaa
 UNIT_DIR=/etc/systemd/system
-REPO=rorpage/game-over-man
-SERVICE_USER=game-over-man
+REPO=rorpage/now-you-noaa
+SERVICE_USER=now-you-noaa
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "$EUID" -ne 0 ]; then
@@ -35,11 +35,11 @@ if [ -n "$GOARCH" ] && command -v curl &>/dev/null; then
     | grep '"tag_name"' | cut -d'"' -f4 || true)
 
   if [ -n "$LATEST" ]; then
-    BINARY_URL="https://github.com/$REPO/releases/download/$LATEST/game-over-man-linux-$GOARCH"
+    BINARY_URL="https://github.com/$REPO/releases/download/$LATEST/now-you-noaa-linux-$GOARCH"
     echo "Downloading $LATEST binary for linux/$GOARCH..."
-    if curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/game-over-man"; then
-      chmod +x "$INSTALL_DIR/game-over-man"
-      echo "Installed $LATEST to $INSTALL_DIR/game-over-man"
+    if curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/now-you-noaa"; then
+      chmod +x "$INSTALL_DIR/now-you-noaa"
+      echo "Installed $LATEST to $INSTALL_DIR/now-you-noaa"
       BINARY_INSTALLED=true
     else
       echo "Download failed, will try building from source."
@@ -57,21 +57,21 @@ if [ "$BINARY_INSTALLED" = false ]; then
     echo "Options:"
     echo "  1. Install Go from https://go.dev/dl/ and re-run this script"
     echo "  2. Download a binary directly from https://github.com/$REPO/releases"
-    echo "     and copy it to $INSTALL_DIR/game-over-man"
+    echo "     and copy it to $INSTALL_DIR/now-you-noaa"
     exit 1
   fi
 
   echo "Building from source with Go..."
   REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
   if [ -f "$REPO_ROOT/go.mod" ]; then
-    (cd "$REPO_ROOT" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "$INSTALL_DIR/game-over-man" .)
+    (cd "$REPO_ROOT" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "$INSTALL_DIR/now-you-noaa" .)
   else
     BUILD_DIR=$(mktemp -d)
     trap "rm -rf $BUILD_DIR" EXIT
     git clone --depth 1 "https://github.com/$REPO.git" "$BUILD_DIR"
-    (cd "$BUILD_DIR" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "$INSTALL_DIR/game-over-man" .)
+    (cd "$BUILD_DIR" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "$INSTALL_DIR/now-you-noaa" .)
   fi
-  echo "Built and installed to $INSTALL_DIR/game-over-man"
+  echo "Built and installed to $INSTALL_DIR/now-you-noaa"
 fi
 
 # Create dedicated system user
@@ -86,8 +86,8 @@ chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
 chmod 750 "$DATA_DIR" "$CONFIG_DIR"
 
 # Install unit files
-install -m 644 "$SCRIPT_DIR/game-over-man.service" "$UNIT_DIR/"
-install -m 644 "$SCRIPT_DIR/game-over-man.timer"   "$UNIT_DIR/"
+install -m 644 "$SCRIPT_DIR/now-you-noaa.service" "$UNIT_DIR/"
+install -m 644 "$SCRIPT_DIR/now-you-noaa.timer"   "$UNIT_DIR/"
 
 # Set up env file from example if not present
 if [ ! -f "$CONFIG_DIR/env" ]; then
@@ -103,11 +103,11 @@ fi
 
 echo ""
 systemctl daemon-reload
-systemctl enable game-over-man.timer
+systemctl enable now-you-noaa.timer
 echo "Timer enabled. Once your config.json and env file are in place:"
-echo "  sudo systemctl start game-over-man.timer"
+echo "  sudo systemctl start now-you-noaa.timer"
 echo ""
 echo "Commands:"
-echo "  systemctl status game-over-man.timer    -- next scheduled run"
-echo "  systemctl start game-over-man.service   -- run immediately"
-echo "  journalctl -u game-over-man -f          -- follow logs"
+echo "  systemctl status now-you-noaa.timer    -- next scheduled run"
+echo "  systemctl start now-you-noaa.service   -- run immediately"
+echo "  journalctl -u now-you-noaa -f          -- follow logs"

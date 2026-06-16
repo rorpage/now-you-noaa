@@ -1,3 +1,3 @@
-module github.com/rorpage/game-over-man
+module github.com/rorpage/now-you-noaa
 
 go 1.22
