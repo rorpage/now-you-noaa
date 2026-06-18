@@ -4,15 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 const (
-	defaultConfigFile = "/etc/now-you-noaa/config.json"
-	defaultStateFile  = "/var/lib/now-you-noaa/state.json"
-	defaultPruneDays  = 7
-	defaultUserAgent  = "now-you-noaa (https://github.com/rorpage/now-you-noaa)"
+	defaultPruneDays = 7
+	defaultUserAgent = "now-you-noaa (https://github.com/rorpage/now-you-noaa)"
 )
+
+func userAppDir() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return filepath.Join(dir, "now-you-noaa")
+}
 
 type appConfig struct {
 	Areas                []string          `json:"areas"`
@@ -32,7 +39,7 @@ type appConfig struct {
 func loadConfig() (*appConfig, error) {
 	path := os.Getenv("CONFIG_FILE")
 	if path == "" {
-		path = defaultConfigFile
+		path = filepath.Join(userAppDir(), "config.json")
 	}
 
 	data, err := os.ReadFile(path)
@@ -56,7 +63,7 @@ func loadConfig() (*appConfig, error) {
 		cfg.StateFilePath = sf
 	}
 	if cfg.StateFilePath == "" {
-		cfg.StateFilePath = defaultStateFile
+		cfg.StateFilePath = filepath.Join(userAppDir(), "state.json")
 	}
 
 	if cfg.PruneAfterDays <= 0 {
