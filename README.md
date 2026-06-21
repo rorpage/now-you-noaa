@@ -224,7 +224,11 @@ systemd timers have proper log capture via `journalctl`, survive reboots cleanly
 **Quick install:**
 
 ```bash
+# From a cloned repo
 sudo bash deploy/systemd/install.sh
+
+# Or run directly from GitHub (no clone needed)
+curl -fsSL https://raw.githubusercontent.com/rorpage/now-you-noaa/main/deploy/systemd/install.sh | sudo bash
 ```
 
 The script downloads the latest binary from GitHub Releases (or builds from source if Go is available), creates a `now-you-noaa` system user, sets up `/etc/now-you-noaa/` and `/var/lib/now-you-noaa/`, and enables the timer. Then:
