@@ -71,9 +71,10 @@ At least one of `areas` or `zones` is required. Notification URL is required (vi
 Base URL: `https://api.weather.gov/alerts/active`
 
 Query parameters used:
-- `status=Actual` -- always set; excludes Test, Exercise, System, Draft alerts
 - `area=IN,OH` -- comma-separated state abbreviations (built from `areas` config)
 - `zone=INZ032` -- comma-separated zone codes (built from `zones` config)
+
+The `status` parameter is not sent; the `/alerts/active` endpoint already scopes to active alerts.
 
 The response is a GeoJSON FeatureCollection. Each feature's `id` field (a URL like `https://api.weather.gov/alerts/urn:oid:...`) is used as the unique alert identifier for state tracking. The `properties` object contains all alert metadata.
 
@@ -139,7 +140,7 @@ python3 -m http.server 3001
 To inspect live NOAA data without running the full binary:
 
 ```bash
-curl -s "https://api.weather.gov/alerts/active?status=Actual&area=IN" | jq '.features[].properties.event'
+curl -s "https://api.weather.gov/alerts/active?area=IN" | jq '.features[].properties.event'
 ```
 
 ## Versioning
