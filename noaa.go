@@ -60,7 +60,7 @@ func fetchAlerts(cfg *appConfig) ([]alertResult, error) {
 	var results []alertResult
 
 	if len(cfg.Areas) > 0 {
-		endpoint := noaaBase + "?status=Actual&area=" + strings.Join(cfg.Areas, ",")
+		endpoint := noaaBase + "?area=" + strings.Join(cfg.Areas, ",")
 		alerts, err := fetchFromEndpoint(endpoint, cfg.UserAgent)
 		if err != nil {
 			return nil, err
@@ -74,7 +74,7 @@ func fetchAlerts(cfg *appConfig) ([]alertResult, error) {
 	}
 
 	if len(cfg.Zones) > 0 {
-		endpoint := noaaBase + "?status=Actual&zone=" + strings.Join(cfg.Zones, ",")
+		endpoint := noaaBase + "?zone=" + strings.Join(cfg.Zones, ",")
 		alerts, err := fetchFromEndpoint(endpoint, cfg.UserAgent)
 		if err != nil {
 			return nil, err
